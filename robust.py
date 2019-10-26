@@ -108,6 +108,8 @@ def run_stuff_mountain_car():
     plt.plot(x, -np.mean(all_rewards, axis=0), label="Bellman")
     plt.plot(x, -np.mean(consistent_all_rewards, axis=0), label="Consistent Bellman")
     agent = QAgent(state_Space, list(range(3)), discretization)
+    env = gym.make('MountainCar-v0')
+    env._max_episode_steps = max_steps
     while True:
         agent.Q = np.array(q_table)
         for i in range(1000):
@@ -121,6 +123,7 @@ def run_stuff_mountain_car():
             the_state = next_state
             if done:
                 break
+        env.reset()
         
     plt.legend()
     plt.show()
