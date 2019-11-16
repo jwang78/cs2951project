@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import bisect
 import multiprocessing
+import collections
 import json
 
 def choose_action_softmax(state, actions, Q, temp=1):
@@ -74,8 +75,9 @@ class Agent:
 
     def reset(self):
         self.Q = self.Q * 0 + self.init_Q
-
-def run_agent(agent, environment, num_episodes=100, max_steps=1000, render=True):
+def run_agent(agent, environment, num_episodes, num_test_episodes, max_steps, render):
+    return *train_agent(agent, environment, num_episodes, max_steps, render), test_agent(agent, environment, num_episodes, num_test_episodes, max_steps, render)
+def train_agent(agent, environment, num_episodes=100, max_steps=1000, render=True):
     env = gym.make(environment)
     env._max_episode_steps = max_steps
     rewards = []
@@ -136,28 +138,34 @@ def run(environment, state_space, discretization, test, alpha, gamma, init_Q):
     num_experiments = 6
     q_tables_d = {}
     raw_rewards_d = {}
+    the_args = []
     for agent in ['Bellman', 'Consistent', 'RSO']:
-        args = [(Agent(agent[0], state_space, list(range(3)), discretization, alpha, gamma, init_Q), environment, num_episodes, max_steps, False) for i in range(num_experiments)]
-        all_rewards = pool.starmap(run_agent, args)
-        for arg, (_, Q) in zip(args, all_rewards):
-            arg[0].Q = Q
-        raw_rewards = np.array([reward for reward, _ in all_rewards])
-        q_tables = np.array([q_table for _, q_table in all_rewards])
-        parameters = {"environment": environment, "agent": agent, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "max_steps": max_steps}
+        args = [(Agent(agent[0], state_space, list(range(3)), discretization, alpha, gamma, init_Q), environment, num_episodes, num_test_episodes, max_steps, False) for i in range(num_experiments)]
+        the_args += args
+    all_rewards = pool.starmap(run_agent, the_args)
+    for arg, (_, Q) in zip(args, all_rewards):
+        arg[0].Q = Q
+    raw_rewards = np.array([reward for reward, _, _ in all_rewards])
+    q_tables = np.array([q_table for _, q_table, _ in all_rewards])
+    raw_test_rewards = np.array([test_reward for _, _, test_reward in all_rewards])
+    stuffs = collections.defaultdict(list)
+    stuffs2 = collections.defaultdict(list)
+    stuffs3 = collections.defaultdict(list)
+    for arg, reward, q_table, test_reward in zip(the_args, raw_rewards, q_tables, raw_test_rewards):
+        stuffs[arg[0].type].append(reward)
+        stuffs2[arg[0].type].append(q_table)
+        stuffs3[arg[0].type].append(test_reward)
+    for agent_type in stuffs:
+        parameters = {"environment": environment, "agent": agent_type, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "max_steps": max_steps}
         name = json.dumps(parameters)
-        q_tables_d[name] = q_tables
-        raw_rewards_d[name] = raw_rewards
-        
-        all_rewards = [moving_average(reward, moving_average_length) for reward, _ in all_rewards]
-        all_rewards = np.array(all_rewards)
+        q_tables_d[name] = np.array(stuffs2[agent_type])
+        raw_rewards_d[name] = np.array(stuffs[agent_type])
+        t= np.array(stuffs3[agent_type])
+        raw_test_rewards_d[name] = t
+        print("Agent: %s Mean: %.4f Std: %.4f" % (agent_type, np.mean(t), np.std(t)))
+    
 
-        if test:
-            test_args = [arg[0:2] + (num_test_episodes, ) + arg[3:] for arg in args]
-            #test_args[-1] = test_args[-1][:-1] + (True,)
-            test_rewards = np.array(pool.starmap(test_agent, test_args))
-            print(agent, "Test", -np.mean(test_rewards), 'std:', np.std(test_rewards))
-
-    return raw_rewards_d, q_tables_d
+    return raw_rewards_d, q_tables_d, raw_test_rewards_d
 
 
 
@@ -188,9 +196,10 @@ def main():
 
     # Uncomment below to run Mountain Car experiment
     
-    rewards, q_tables = run(mc_env, mc_state_space, mc_discretization, mc_test, mc_alpha, mc_gamma, mc_init_Q)
+    rewards, q_tables, test_rewards = run(mc_env, mc_state_space, mc_discretization, mc_test, mc_alpha, mc_gamma, mc_init_Q)
     np.savez("rewards.npz", **rewards)
     np.savez("qvalues.npz", **q_tables)
+    np.savez("test_rewards.npz", **test_rewards)
 
     # Uncomment below to run Acrobot experiment
     #run(ac_env, ac_state_space, ac_discretization, ac_test, ac_alpha, ac_gamma, ac_init_Q)
