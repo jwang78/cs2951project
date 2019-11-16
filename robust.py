@@ -90,6 +90,8 @@ def run_agent(agent, environment, num_episodes=100, max_steps=1000, render=True)
     for i in range(num_episodes):
         the_state = env.reset()
         total_reward = 0
+        if i % 200 == 199:
+            print("Episode", i)
         for j in range(max_steps):
             if render and i == num_episodes - 1:
                 env.render()
@@ -129,6 +131,57 @@ def moving_average(a, n):
     ret = np.cumsum(a, dtype=float)
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
+def run_stuff_lunar_lander():
+    state_space = list(range(4**6 * 4))
+    epsilon = 0.0000001
+    max_steps = 200
+    num_episodes = 7000
+    num_test_episodes = 500
+    moving_average_length = 200
+    num_experiments = 3
+    learning_rate = 0.6
+    discount_factor = 0.999
+    lunar_discretization = Discretization(state_space, [np.array([-np.inf, -0.5, 0, 0.5, np.inf]) for i in range(6)] + [np.array([-0.1, 0.1, 1.5]) for i in range(2)])
+    
+    for environment, discretization in [('LunarLander-v2', lunar_discretization)]:
+        args = [(QAgent(state_space, list(range(3)), discretization, learning_rate, discount_factor), environment, num_episodes, max_steps, False) for i in range(num_experiments)]
+        all_rewards = pool.starmap(run_agent, args)
+        for arg, (_, Q) in zip(args, all_rewards):
+            arg[0].Q = Q
+        q_table = all_rewards[0][1]
+        all_rewards = [moving_average(reward, moving_average_length) for reward, _ in all_rewards]
+        all_rewards = np.array(all_rewards)
+        consistent_args = [(QConsistentAgent(state_space, list(range(3)), discretization, learning_rate, discount_factor), environment, num_episodes, max_steps, False) for i in range(num_experiments)]
+        consistent_all_rewards = pool.starmap(run_agent, consistent_args)
+        for arg, (_, Q) in zip(consistent_args, consistent_all_rewards):
+            arg[0].Q = Q
+        consistent_all_rewards = [moving_average(reward, moving_average_length) for reward, _ in consistent_all_rewards]
+        rso_args = [(QRSOAgent(state_space, list(range(3)), discretization, learning_rate, discount_factor), environment, num_episodes, max_steps, False) for i in range(num_experiments)]
+        rso_rewards = pool.starmap(run_agent, rso_args)
+        for arg, (_, Q) in zip(rso_args, rso_rewards):
+            arg[0].Q = Q
+        rso_rewards = [moving_average(reward, moving_average_length) for reward, _ in rso_rewards]
+        print("Testing...")
+
+        rso_test_args = [arg[0:2] + (num_test_episodes, ) + arg[3:] for arg in rso_args]
+        consistent_test_args = [arg[0:2] + (num_test_episodes, ) + arg[3:] for arg in consistent_args]
+        q_test_args = [arg[0:2] + (num_test_episodes, ) + arg[3:] for arg in args]
+        rso_test_rewards = np.array(pool.starmap(test_agent, rso_test_args))
+        consistent_test_rewards = np.array(pool.starmap(test_agent, consistent_test_args))
+        q_test_rewards = np.array(pool.starmap(test_agent, q_test_args))
+        #print(np.mean(rso_test_rewards, axis=0))
+        print(np.linalg.norm(q_test_args[0][0].Q), np.linalg.norm(q_table))
+        print("RSO Test", np.mean(rso_test_rewards))
+        print("Consistent Test", np.mean(consistent_test_rewards))
+        print("Bellman Test", np.mean(q_test_rewards))
+        x = np.arange(all_rewards.shape[1])
+        plt.plot(x, np.mean(all_rewards, axis=0), label="Bellman")
+        plt.plot(x, np.mean(consistent_all_rewards, axis=0), label="Consistent Bellman")
+        plt.plot(x, np.mean(rso_rewards, axis=0), label="RSO")
+        plt.title(r"$\gamma={}, \alpha={}, n={}$".format(discount_factor, learning_rate, num_experiments))
+        plt.legend()
+        
+        plt.show()
 def run_stuff_mountain_car():
     state_space = list(range(40*40))
     epsilon = 0.0000001
@@ -137,9 +190,10 @@ def run_stuff_mountain_car():
     num_test_episodes = 1000
     moving_average_length = 500
     num_experiments = 20
-    learning_rate = 0.1
+    learning_rate = 0.6
     discount_factor = 0.999
     mc_discretization = Discretization(state_space, [np.linspace(-1.2 - epsilon, 0.6, num=40, endpoint=False), np.linspace(-0.07 - epsilon, 0.07, num=40, endpoint=False)])
+    
     for environment, discretization in [('MountainCar-v0', mc_discretization)]:
         args = [(QAgent(state_space, list(range(3)), discretization, learning_rate, discount_factor), environment, num_episodes, max_steps, False) for i in range(num_experiments)]
         all_rewards = pool.starmap(run_agent, args)
@@ -175,31 +229,14 @@ def run_stuff_mountain_car():
         plt.plot(x, -np.mean(all_rewards, axis=0), label="Bellman")
         plt.plot(x, -np.mean(consistent_all_rewards, axis=0), label="Consistent Bellman")
         plt.plot(x, -np.mean(rso_rewards, axis=0), label="RSO")
+        plt.title(r"$\gamma={}, \alpha={}, n={}$".format((discount_factor, learning_rate, num_experiments)))
         plt.legend()
         
         plt.show()
-    agent = QAgent(state_space, list(range(3)), discretization)
-    env = gym.make('MountainCar-v0')
-    env._max_episode_steps = max_steps
     
-    while True and False:
-        total_reward = 0
-        the_state = env.reset()
-        agent.Q = np.array(q_table)
-        for i in range(1000):
-            env.render()
-            discrete_state = agent.state_discretization(the_state)
-            action = agent.decide(discrete_state)
-            next_state, reward, done, info = env.step(action)
-            discrete_next_state = agent.state_discretization(next_state)
-            total_reward += reward
-            agent.update(discrete_state, action, reward, discrete_next_state)
-            the_state = next_state
-            if done:
-                break
 def main():
-    run_stuff_mountain_car()
-    
+    #run_stuff_mountain_car()
+    run_stuff_lunar_lander()
 ##    state_space = list(range(40*40))
 ##    epsilon = 0.0000001
 ##    max_steps = 200
