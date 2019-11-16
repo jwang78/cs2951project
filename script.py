@@ -76,7 +76,7 @@ class Agent:
     def reset(self):
         self.Q = self.Q * 0 + self.init_Q
 def run_agent(agent, environment, num_episodes, num_test_episodes, max_steps, render):
-    return *train_agent(agent, environment, num_episodes, max_steps, render), test_agent(agent, environment, num_episodes, num_test_episodes, max_steps, render)
+    return train_agent(agent, environment, num_episodes, max_steps, render) + (test_agent(agent, environment, num_test_episodes, max_steps, render),)
 def train_agent(agent, environment, num_episodes=100, max_steps=1000, render=True):
     env = gym.make(environment)
     env._max_episode_steps = max_steps
@@ -138,12 +138,13 @@ def run(environment, state_space, discretization, test, alpha, gamma, init_Q):
     num_experiments = 6
     q_tables_d = {}
     raw_rewards_d = {}
+    raw_test_rewards_d = {}
     the_args = []
     for agent in ['Bellman', 'Consistent', 'RSO']:
         args = [(Agent(agent[0], state_space, list(range(3)), discretization, alpha, gamma, init_Q), environment, num_episodes, num_test_episodes, max_steps, False) for i in range(num_experiments)]
         the_args += args
     all_rewards = pool.starmap(run_agent, the_args)
-    for arg, (_, Q) in zip(args, all_rewards):
+    for arg, (_, Q, _) in zip(args, all_rewards):
         arg[0].Q = Q
     raw_rewards = np.array([reward for reward, _, _ in all_rewards])
     q_tables = np.array([q_table for _, q_table, _ in all_rewards])
@@ -206,5 +207,5 @@ def main():
 
 
 if __name__ == "__main__":
-    pool = multiprocessing.Pool(6)
+    pool = multiprocessing.Pool(60)
     main()
