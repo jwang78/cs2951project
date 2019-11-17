@@ -132,10 +132,10 @@ def moving_average(a, n):
 def run(environment, state_space, discretization, test, alpha, gamma, init_Q):
 
     max_steps = 200
-    num_episodes = 100
-    num_test_episodes = 10
+    num_episodes = 50000
+    num_test_episodes = 2000
     moving_average_length = 10
-    num_experiments = 6
+    num_experiments = 20
     q_tables_d = {}
     raw_rewards_d = {}
     raw_test_rewards_d = {}
@@ -197,13 +197,14 @@ def main():
 
     # Uncomment below to run Mountain Car experiment
     
-    rewards, q_tables, test_rewards = run(mc_env, mc_state_space, mc_discretization, mc_test, mc_alpha, mc_gamma, mc_init_Q)
+    #rewards, q_tables, test_rewards = run(mc_env, mc_state_space, mc_discretization, mc_test, mc_alpha, mc_gamma, mc_init_Q)
+    
+
+    # Uncomment below to run Acrobot experiment
+    rewards, q_tables, test_rewards = run(ac_env, ac_state_space, ac_discretization, ac_test, ac_alpha, ac_gamma, ac_init_Q)
     np.savez("rewards.npz", **rewards)
     np.savez("qvalues.npz", **q_tables)
     np.savez("test_rewards.npz", **test_rewards)
-
-    # Uncomment below to run Acrobot experiment
-    #run(ac_env, ac_state_space, ac_discretization, ac_test, ac_alpha, ac_gamma, ac_init_Q)
 
 
 if __name__ == "__main__":
