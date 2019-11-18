@@ -8,6 +8,7 @@ __pycache__/
 
 # NumPy Arrays
 *.npz
+results/
 
 # Distribution / packaging
 .Python

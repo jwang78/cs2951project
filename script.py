@@ -158,7 +158,7 @@ def run(environment, state_space, discretization, test, alpha, gamma, init_Q):
         stuffs3[arg[0].type].append(test_reward)
     for agent_type in stuffs:
         parameters = {"environment": environment, "agent": agent_type, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "max_steps": max_steps}
-        name = json.dumps(parameters)
+        name = json.dumps(parameters, sort_keys=True)
         q_tables_d[name] = np.array(stuffs2[agent_type])
         raw_rewards_d[name] = np.array(stuffs[agent_type])
         t= np.array(stuffs3[agent_type])
