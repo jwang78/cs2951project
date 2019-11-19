@@ -5,9 +5,9 @@ import bisect
 import multiprocessing
 import collections
 import json
-
-def choose_action_softmax(state, actions, Q, temp=1):
-    q_vals = Q[state,:]
+temperature = 1
+def choose_action_softmax(state, actions, Q, temp=temperature):
+    q_vals = Q[state,:]/temp
 
     total = np.sum(np.exp(q_vals))
     softmax = np.exp(q_vals)/total
@@ -157,7 +157,7 @@ def run(environment, state_space, discretization, test, alpha, gamma, init_Q):
         stuffs2[arg[0].type].append(q_table)
         stuffs3[arg[0].type].append(test_reward)
     for agent_type in stuffs:
-        parameters = {"environment": environment, "agent": agent_type, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "max_steps": max_steps}
+        parameters = {"environment": environment, "agent": agent_type, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "max_steps": max_steps, "temperature": temperature}
         name = json.dumps(parameters, sort_keys=True)
         q_tables_d[name] = np.array(stuffs2[agent_type])
         raw_rewards_d[name] = np.array(stuffs[agent_type])
