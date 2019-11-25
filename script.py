@@ -50,10 +50,13 @@ class Agent:
         self.temperature = temperature
 
     def decide(self, state):
-        return choose_action_softmax(state, self.action_space, self.Q, temp=self.temperature)
+        discrete_state = self.state_discretization(state)
+        return choose_action_softmax(discrete_state, self.action_space, self.Q, temp=self.temperature)
     def update(self, current_state, action, reward, next_state):
-        curr_state_idx = self.state_space.index(current_state)
-        next_state_idx = self.state_space.index(next_state)
+        discrete_next_state = self.state_discretization(next_state)
+        discrete_current_state = self.state_discretization(current_state)
+        curr_state_idx = self.state_space.index(discrete_current_state)
+        next_state_idx = self.state_space.index(discrete_next_state)
         action_idx = self.action_space.index(action)
 
         if self.type == 'B':
@@ -88,12 +91,12 @@ def train_agent(agent, environment, num_episodes, max_steps, render):
         for j in range(max_steps):
             if render and i == num_episodes - 1:
                 env.render()
-            discrete_state = agent.state_discretization(the_state)
-            action = agent.decide(discrete_state)
+
+            action = agent.decide(the_state)
             next_state, reward, done, info = env.step(action)
-            discrete_next_state = agent.state_discretization(next_state)
+            
             total_reward += reward
-            agent.update(discrete_state, action, reward, discrete_next_state)
+            agent.update(the_state, action, reward, next_state)
             the_state = next_state
             if done:
                 break
@@ -131,12 +134,9 @@ def moving_average(a, n):
 
 
 
-def run(environment, state_space, discretization, alpha, gamma, init_Q, temperature):
+def run(pool, environment, state_space, discretization, alpha, gamma, init_Q, temperature, num_episodes, num_test_episodes, num_experiments):
 
     max_steps = 200
-    num_episodes = 2000
-    num_test_episodes = 100
-    num_experiments = 6
     q_tables_d = {}
     raw_rewards_d = {}
     raw_test_rewards_d = {}
@@ -179,7 +179,7 @@ def main():
     import time
     x = time.time()
     epsilon = 0.0000001
-
+    num_experiments = 20
     # Mountain car args
     mc_env = 'MountainCar-v0'
     mc_state_space = list(range(40*40))
@@ -188,6 +188,21 @@ def main():
     mc_gamma = 0.99
     mc_init_Q = -50
     mc_temperature = 1
+    mc_num_episodes = 10000
+    mc_num_test_episodes = 1000
+    # Uncomment below to run Mountain Car experiment
+    
+    rewards, q_tables, test_rewards = run(pool,
+                                          mc_env,
+                                          mc_state_space,
+                                          mc_discretization,
+                                          mc_alpha,
+                                          mc_gamma,
+                                          mc_init_Q,
+                                          mc_temperature,
+                                          mc_num_episodes,
+                                          mc_num_test_episodes,
+                                          num_experiments)
 
     # Acrobot args
     ac_env = 'Acrobot-v1'
@@ -199,13 +214,23 @@ def main():
     ac_gamma = 0.999
     ac_init_Q = 0
     ac_temperature =1
+    ac_num_episodes = 100000
+    ac_num_test_episodes = 10000
     # Uncomment below to run Acrobot experiment
-    #rewards, q_tables, test_rewards = run(ac_env, ac_state_space, ac_discretization, ac_alpha, ac_gamma, ac_init_Q, ac_temperature)
+    rewards, q_tables, test_rewards = run(pool,
+                                          ac_env,
+                                          ac_state_space,
+                                          ac_discretization,
+                                          ac_alpha,
+                                          ac_gamma,
+                                          ac_init_Q,
+                                          ac_temperature,
+                                          ac_num_episodes,
+                                          ac_num_test_episodes,
+                                          num_experiments)
     
     
-    # Uncomment below to run Mountain Car experiment
-    
-    #rewards, q_tables, test_rewards = run(mc_env, mc_state_space, mc_discretization, mc_test, mc_alpha, mc_gamma, mc_init_Q)
+    # LunarLander args
     lunar_env = 'LunarLander-v2'
     lunar_state_space = list(range(4**6 * 4))
     # First 6 variables are continuous, discretized into four bins, and last two are binary 0, 1
@@ -215,9 +240,21 @@ def main():
     lunar_gamma = 0.99
     lunar_init_Q = 0
     lunar_temperature = 1.5
-    #rewards, q_tables, test_rewards = run(lunar_env, lunar_state_space, lunar_discretization, lunar_alpha, lunar_gamma, lunar_init_Q, lunar_temperature)
+    lunar_num_episodes = 10000
+    lunar_num_test_episodes = 1000
+    rewards, q_tables, test_rewards = run(pool,
+                                          lunar_env,
+                                          lunar_state_space,
+                                          lunar_discretization,
+                                          lunar_alpha,
+                                          lunar_gamma,
+                                          lunar_init_Q,
+                                          lunar_temperature,
+                                          lunar_num_episodes,
+                                          lunar_num_test_episodes,
+                                          num_experiments)
     
-
+    # CartPole args
     cartpole_env = 'CartPole-v1'
     cartpole_state_space = list(range(8*8*10*10))
     cartpole_discretization = Discretization(cartpole_state_space, [np.linspace(-2.6-epsilon, 2.6, 9, True),
@@ -228,7 +265,21 @@ def main():
     cartpole_gamma = 0.99
     cartpole_init_Q = 25
     cartpole_temperature = 2
-    rewards, q_tables, test_rewards = run(cartpole_env, cartpole_state_space, cartpole_discretization, cartpole_alpha, cartpole_gamma, cartpole_init_Q, cartpole_temperature)
+    cartpole_num_episodes = 2000
+    cartpole_num_test_episodes = 100
+
+    # Run CartPole experiment
+    rewards, q_tables, test_rewards = run(pool,
+                                          cartpole_env,
+                                          cartpole_state_space,
+                                          cartpole_discretization,
+                                          cartpole_alpha,
+                                          cartpole_gamma,
+                                          cartpole_init_Q,
+                                          cartpole_temperature,
+                                          cartpole_num_episodes,
+                                          cartpole_num_test_episodes,
+                                          num_experiments)
     
     print("Time", time.time() - x)
     np.savez("rewards.npz", **rewards)
