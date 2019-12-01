@@ -282,7 +282,7 @@ LUNAR_ENV_NAME = "LunarLander-v2"
 
 cartpole_state_space = list(range(8*8*10*10))
 CP_DISCRETIZATION = Discretization(cartpole_state_space, [np.linspace(-2.6-epsilon, 2.6, 9, True),
-                                                                np.linspace(-5.0, 5.0, 9, True),
+                                                                np.hstack([np.array([-np.inf]), np.linspace(-4.0, 4.0, 9, True), np.array([np.inf])]),
                                                                 np.linspace(-0.42, 0.42, 11, True),
                                                                 np.linspace(-4.01, 4.01, 11, True)])
 CP_ENV_NAME = "CartPole-v1"
