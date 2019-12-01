@@ -131,8 +131,6 @@ def train_agent(agent, environment, num_episodes, max_steps, render):
                 break
         #agent.learning_rate *= 0.999
         rewards.append(total_reward)
-        if i % 200 == 199:
-            print("Episode", i)
     return np.array(rewards), agent.Q
 
 def test_agent(agent, environment, num_episodes, max_steps, render):
@@ -192,7 +190,7 @@ def run_multiple_hyperparameters_async(pool, params, callback):
         else:
             args = [(Agent(
                 *(agent_params[:6] + (experiment_parameters["checkpoint_Q"][i],) + agent_params[7:])
-                     ),) for i in range(num_experiments)]
+                     ),) + other_params for i in range(num_experiments)]
         params_tracker.extend([(hyperparameters, experiment_parameters) for i in range(num_experiments)])
         the_args.extend(args)
     def transform_results(results):
@@ -232,7 +230,7 @@ def run(pool, environment, state_space, discretization, alpha, gamma, init_Q, te
     raw_test_rewards_d = {}
     the_args = []
     envvv = gym.make(environment)
-    for agent in ['BSC', 'CSC', 'RSC']:
+    for agent in ['B', 'C', 'R']:
         args = [(Agent(agent, state_space, list(range(envvv.action_space.n)), discretization, alpha, gamma, init_Q, temperature, None), environment, num_episodes, num_test_episodes, max_steps, False) for i in range(num_experiments)]
         the_args += args
     #run_agent(*the_args[0])
