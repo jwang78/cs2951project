@@ -245,7 +245,7 @@ def complete_work():
     if not any(complete_successes):
         return "All work duplicated", 200
     return "Success", 200
-discretization = script.MC_DISCRETIZATION
+discretization = script.CP_DISCRETIZATION
 env = script.CP_ENV_NAME
 num_experiments = 40
 num_episodes = [6000, 1000]

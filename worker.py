@@ -34,7 +34,7 @@ def main(server, num_cores_str):
             else:
                 break
         url = "http://{}/".format(server)
-        
+        print("Registered!")
         while True:
             try:
                 req = requests.post(url+"work", json={"num_cores": num_cores})
