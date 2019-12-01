@@ -33,9 +33,9 @@ def main():
 
     print("Time", time.time() - x)
     
-    np.savez("mc_rewards.npz", **rewards)
-    np.savez("mc_qvalues.npz", **q_tables)
-    np.savez("mc_test_rewards.npz", **test_rewards)
+    np.savez_compressed("mc_rewards.npz", **rewards)
+    np.savez_compressed("mc_qvalues.npz", **q_tables)
+    np.savez_compressed("mc_test_rewards.npz", **test_rewards)
 if __name__ == "__main__":
     # Change this to num_cpus * 2 on GCP
     pool = multiprocessing.Pool(12)
