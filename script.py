@@ -61,6 +61,7 @@ class Agent:
         self.temperature = temperature
         self.epsilon = epsilon
         self.init_epsilon = epsilon
+        self.init_learning_rate = learning_rate
     def anneal(self,episode,step):
         self.learning_rate = self.init_learning_rate / (1.0 + (step / 1000.0) * (1 + episode) / 2000.0)
         self.epsilon = self.init_epsilon / (1.0 + (step / 1000.0) * (1 + episode) / 2000.0)

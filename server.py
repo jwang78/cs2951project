@@ -224,7 +224,7 @@ def write_results():
 @app.route("/experiments", methods=["GET"])
 def work_status():
     return jsonify({"queue": [{"id": experiment.run_id,
-                               "remaining": [list(x) for x in experiment.remaining],
+                               "remaining": [len(x) for x in experiment.remaining],
                                "complete": experiment.is_complete(),
                                "hyperparams": experiment.job.hyperparams,
                                "environment": experiment.job.environment
@@ -247,17 +247,17 @@ def complete_work():
     return "Success", 200
 discretization = script.MC_DISCRETIZATION
 env = script.MC_ENV_NAME
-num_experiments = 5
-num_episodes = [1000, 100]
+num_experiments = 40
+num_episodes = [15000, 1000]
 runs = [{"agent": agent, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "temperature": temperature, "epsilon": epsilon}
         for agent in ["BSC", "CSC", "RSC", "BEA", "CEA", "REA"][0:3]
         for alpha in [0.01, 0.1]
-        for gamma in [0.99]
+        for gamma in [0.99, 0.999]
         for init_Q in [-50]
         for temperature in [1]
-        for epsilon in [0.1]]
+        for epsilon in [0.1, 0.2, 0.4]]
 work_units = [WorkUnit(None, env, list(range(num_experiments)), num_episodes, run) for run in runs]
-experiment_queue = [ExperimentalRun(i, wu, 100) for i, wu in enumerate(work_units)]
+experiment_queue = [ExperimentalRun(i, wu, 3000) for i, wu in enumerate(work_units)]
 experiments = {experiment.run_id: experiment for experiment in experiment_queue}
 
 if __name__ == "__main__":
