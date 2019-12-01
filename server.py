@@ -247,20 +247,21 @@ def complete_work():
     return "Success", 200
 
 env = script.LUNAR_ENV_NAME
-num_experiments = 40
+num_experiments = 20
 num_episodes = [15000, 1000]
 runs = [{"agent": agent, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "temperature": temperature, "epsilon": epsilon, "episode_annealing": episode_annealing, "step_annealing": step_annealing}
-        for agent in ["BSC", "CSC", "RSC", "BEA", "CEA", "REA"][0:3]
+        for agent in ["BSC", "CSC", "RSC", "BEC", "CEC", "REC", "BSA", "CSA", "RSA"]
         for alpha in [0.01, 0.1, 0.5]
         for gamma in [0.995]
         for init_Q in [25]
         for temperature in [1]
-        for epsilon in [0.1, 0.2]
+        for epsilon in [0.2]
         for episode_annealing in [1000]
         for step_annealing in [2000]]
+
 work_units = [WorkUnit(None, env, list(range(num_experiments)), num_episodes, run) for run in runs]
-experiment_queue = [ExperimentalRun(i, wu, 3000) for i, wu in enumerate(work_units)]
+experiment_queue = [ExperimentalRun(i, wu, 2000) for i, wu in enumerate(work_units)]
 experiments = {experiment.run_id: experiment for experiment in experiment_queue}
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=80, debug=True)
