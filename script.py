@@ -48,7 +48,13 @@ class Agent:
                  state_space,
                  action_space,
                  state_discretization,
-                 learning_rate, discount_factor, init_Q, temperature, epsilon):
+                 learning_rate,
+                 discount_factor,
+                 init_Q,
+                 temperature,
+                 epsilon,
+                 episode_annealing,
+                 step_annealing):
         #assert type in ['B', 'C', 'R'], 'type should be B,C, or R'
         self.type = type
         self.action_space = list(action_space)
@@ -62,9 +68,11 @@ class Agent:
         self.epsilon = epsilon
         self.init_epsilon = epsilon
         self.init_learning_rate = learning_rate
+        self.episode_annealing = episode_annealing
+        self.step_annealing = step_annealing
     def anneal(self,episode,step):
-        self.learning_rate = self.init_learning_rate / (1.0 + (step / 1000.0) * (1 + episode) / 2000.0)
-        self.epsilon = self.init_epsilon / (1.0 + (step / 1000.0) * (1 + episode) / 2000.0)
+        self.learning_rate = self.init_learning_rate / (1.0 + (step / self.episode_annealing) * (1 + episode) / self.episode_annealing)
+        self.epsilon = self.init_epsilon / (1.0 + (step / self.episode_annealing) * (1 + episode) / self.episode_annealing)
     def decide(self, state):
         discrete_state = self.state_discretization(state)
         if self.type[1] == 'S':
@@ -177,7 +185,9 @@ def run_multiple_hyperparameters_async(pool, params, callback):
           hyperparameters["gamma"],
           hyperparameters["init_Q"],
           hyperparameters["temperature"],
-          hyperparameters["epsilon"])
+          hyperparameters["epsilon"],
+          hyperparameters["episode_annealing"],
+          hyperparameters["step_annealing"])
         other_params = (environment,
                         experiment_parameters["num_episodes"],
                         experiment_parameters["num_test_episodes"],
@@ -210,7 +220,9 @@ def run_multiple_hyperparameters_async(pool, params, callback):
                           "gamma": hyperparams["gamma"],
                           "init_Q": hyperparams["init_Q"],
                           "temperature": hyperparams["temperature"],
-                          "epsilon": hyperparams["epsilon"]}
+                          "epsilon": hyperparams["epsilon"],
+                          "episode_annealing": hyperparams["episode_annealing"],
+                          "step_annealing": hyperparams["step_annealing"]}
             name = re.sub(r"\s+", "", json.dumps(parameters, sort_keys=True))
             raw_rewards_dict[name].append(reward)
             q_tables_dict[name].append(q_table)
@@ -223,7 +235,8 @@ def run_multiple_hyperparameters_async(pool, params, callback):
         callback(*transform_results(results))
     result = pool.starmap_async(run_agent, the_args, callback=result_callback)
     return lambda x: transform_results(result.get(x))
-def run(pool, environment, state_space, discretization, alpha, gamma, init_Q, temperature, num_episodes, num_test_episodes, num_experiments):
+def run(pool, environment, state_space, discretization, alpha, gamma, init_Q,
+        temperature, num_episodes, num_test_episodes, num_experiments, epsilon=0.2, episode_annealing=2000, step_annealing=1000):
 
     max_steps = 200
     q_tables_d = {}
@@ -232,7 +245,7 @@ def run(pool, environment, state_space, discretization, alpha, gamma, init_Q, te
     the_args = []
     envvv = gym.make(environment)
     for agent in ['B', 'C', 'R']:
-        args = [(Agent(agent, state_space, list(range(envvv.action_space.n)), discretization, alpha, gamma, init_Q, temperature, None), environment, num_episodes, num_test_episodes, max_steps, False) for i in range(num_experiments)]
+        args = [(Agent(agent, state_space, list(range(envvv.action_space.n)), discretization, alpha, gamma, init_Q, temperature, epsilon, episode_annealing, step_annealing), environment, num_episodes, num_test_episodes, max_steps, False) for i in range(num_experiments)]
         the_args += args
     #run_agent(*the_args[0])
     all_rewards = pool.starmap(run_agent, the_args)
@@ -249,7 +262,7 @@ def run(pool, environment, state_space, discretization, alpha, gamma, init_Q, te
         stuffs2[arg[0].type].append(q_table)
         stuffs3[arg[0].type].append(test_reward)
     for agent_type in stuffs:
-        parameters = {"environment": environment, "agent": agent_type, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "max_steps": max_steps, "temperature": temperature, "epsilon": None}
+        parameters = {"environment": environment, "agent": agent_type, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "max_steps": max_steps, "temperature": temperature, "epsilon": epsilon, "episode_annealing": episode_annealing, "step_annealing": step_annealing}
         name = re.sub(r"\s+", "", json.dumps(parameters, sort_keys=True))
         q_tables_d[name] = np.array(stuffs2[agent_type])
         raw_rewards_d[name] = np.array(stuffs[agent_type])
