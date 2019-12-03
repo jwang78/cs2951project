@@ -244,7 +244,7 @@ def run(pool, environment, state_space, discretization, alpha, gamma, init_Q,
     raw_test_rewards_d = {}
     the_args = []
     envvv = gym.make(environment)
-    for agent in ['B', 'C', 'R']:
+    for agent in ['BSC', 'CSC', 'RSC']:
         args = [(Agent(agent, state_space, list(range(envvv.action_space.n)), discretization, alpha, gamma, init_Q, temperature, epsilon, episode_annealing, step_annealing), environment, num_episodes, num_test_episodes, max_steps, False) for i in range(num_experiments)]
         the_args += args
     #run_agent(*the_args[0])
