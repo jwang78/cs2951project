@@ -36,11 +36,14 @@ def main(server, num_cores_str):
         url = "http://{}/".format(server)
         print("Registered!")
         while True:
+            reqq = None
             try:
                 req = requests.post(url+"work", json={"num_cores": num_cores})
+                reqq = req
                 next_assignment = json.loads(req.text)
             except Exception as e:
-                print("Exception occurred getting more work", e, req.text, req.status_code)
+                s = reqq.text + " " + str(reqq.status_code) if reqq is not None else "<None>"
+                print("Exception occurred getting more work", e, s)
                 time.sleep(10)
                 continue
             if "complete" in next_assignment and next_assignment["complete"] == True:
