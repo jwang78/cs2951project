@@ -226,14 +226,13 @@ def work_status():
     total_experiments = len(experiments)*len(experiment_queue[0].work_units)*len(experiment_queue[0].work_units[0].experiments)
     curr_progress = sum([sum([len(x) for x in experiment.remaining]) for experiment in experiment_queue])
     return jsonify({"queue": [{"id": experiment.run_id,
-                               "current_progress": curr_progress,
-                               "ending_progress": total_experiments,
                                "remaining": [len(x) for x in experiment.remaining],
                                "complete": experiment.is_complete(),
                                "hyperparams": experiment.job.hyperparams,
                                "environment": experiment.job.environment
                                }
-                              for experiment in experiment_queue]})
+                              for experiment in experiment_queue], "current_progress": total_experiments-curr_progress,
+                               "ending_progress": total_experiments})
 
 @app.route("/complete", methods=["POST"])
 def complete_work():
