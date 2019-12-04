@@ -83,7 +83,7 @@ def main(server, num_cores_str):
                     response = requests.post(url+"complete", json={"assignment_id": assignment_id, "rewards": rewards_string, "qtable": q_string, "test_rewards": test_rewards_string})
                     print("Finished work. Text:", response.text, "Status:", response.status_code)
                     break
-                except multiprocessing.TimeoutError as e:
+                except Exception as e:
                     continue
         
 
