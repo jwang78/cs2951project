@@ -7,6 +7,9 @@ import re
 import numpy as np
 import base64
 import io
+import os
+import sys
+tmpdir = sys.argv[1]
 app = Flask(__name__)
 workers = {}
 episode_count = {script.MC_ENV_NAME: 10000, script.AC_ENV_NAME: 100000, script.LUNAR_ENV_NAME: 20000, script.CP_ENV_NAME: 5000}
@@ -22,6 +25,73 @@ class WorkUnit:
         f = dict(self.hyperparams)
         f["environment"] = self.environment
         return re.sub(r"\s+", "", json.dumps(f, sort_keys=True))
+class ExperimentalRunResult:
+    def __init__(self, temporary_directory, work_unit):
+        self.tmpdir = temporary_directory
+        num = 0
+        while os.path.exists(self.tmpdir):
+            self.tmpdir = temporary_directory + "_"+str(num)
+        [os.makedirs(self.tmpdir+"/"+x) for x in ["q", "r", "tr"]]
+        self.q_file = self.tmpdir+"/q/%d.npz"
+        self.r_file = self.tmpdir+"/r/%d.npz"
+        self.tr_file = self.tmpdir+"/tr/%d.npz"
+        self.experiments = work_unit.experiments
+        self.q_files = []
+        self.r_files = []
+        self.tr_files = []
+    def get_rewards():
+        arr = [np.load(x)['r'] for x in self.r_files]
+        x = np.concatenate(arr)
+        return x
+    def get_test_rewards(self):
+        arr = [np.load(x)['tr'] for x in self.tr_files]
+        x = np.concatenate(arr)
+        return x
+    def get_last_qtable(self):
+        arr = np.load(self.q_files[-1])['q']
+        return arr
+    def add_qtable(self, stage, table, experiment_id):
+        q_file = self.q_file % stage
+        if os.path.exists(q_file):
+            qtables = np.copy(np.load(q_file)["q"])
+        else:
+            qtables = np.full([len(self.experiments)] + list(table.shape), np.nan)
+        if experiment_id not in self.experiments:
+            print("Experiment id not found", experiment_id, self.experiments)
+            return
+        else:
+            qtables[self.experiments.index(experiment_id)] = table
+            np.savez_compressed(q_file, q=qtables)
+            self.q_files.append(q_file)
+    def add_rewards(self, stage, rewards, experiment_id):
+        rewards_file = self.r_file % stage
+        if os.path.exists(rewards_file):
+            rewards_arr = np.copy(np.load(rewards_file)["r"])
+        else:
+            rewards_arr = np.full([len(self.experiments)] + list(rewards.shape), np.nan)
+        if experiment_id not in self.experiments:
+            print("Experiment id not found", experiment_id, self.experiments)
+            return
+        else:
+            rewards_arr[self.experiments.index(experiment_id)] = rewards
+            np.savez_compressed(rewards_file, r=rewards_arr)
+            self.r_files.append(rewards_file)
+    def add_test_rewards(self, stage, test_rewards, experiment_id):
+        tr_file = self.tr_file % stage
+        if os.path.exists(tr_file):
+            test_rewards_arr = np.copy(np.load(tr_file)["tr"])
+        else:
+            test_rewards_arr = np.full([len(self.experiments)] + list(test_rewards.shape), np.nan)
+        if experiment_id not in self.experiments:
+            print("Experiment id not found", experiment_id, self.experiments)
+            return
+        else:
+            test_rewards_arr[self.experiments.index(experiment_id)] = test_rewards
+            np.savez_compressed(tr_file, tr=test_rewards_arr)
+            self.tr_files.append(tr_file)
+    def stage_complete(stage):
+        pass
+    
 class ExperimentalRun:
     def __init__(self, run_id, work_unit, checkpoint_frequency):
         self.run_id = run_id
@@ -30,6 +100,7 @@ class ExperimentalRun:
         self.remaining = [set(work_unit.experiments)] * len(work_units)
         self.unreserved = [set(work_unit.experiments) for i in range(len(work_units))]*len(work_units)
         self.work_units = work_units
+        self.run_results = ExperimentalRunResult(tmpdir+"/work"+str(hash(work_unit.to_json())), work_unit)
         self.job = work_unit
     def __eq__(self, other):
         return other.run_id == self.run_id
@@ -67,6 +138,7 @@ class ExperimentalRun:
         assert work_id[0] == self.run_id
         return len(self.remaining[work_id[1]]) > 0
     def partial_complete(self, work_id, rewards, q_tables, test_rewards):
+        #print(work_id, "asdf")
         if not self.requires_work(work_id):
             return False
         key = self.work_units[work_id[1]].to_json()
@@ -75,26 +147,28 @@ class ExperimentalRun:
         replace_indices = [x for x in work_id[2] if x in self.remaining[work_id[1]]]
         if len(replace_indices) == 0:
             return False
+        # work_id: (something, stage_number, experiment_numbers)
+        # index of experiment, id of experiment
         for i, idx in enumerate(work_id[2]):
             if idx not in self.remaining[work_id[1]]:
                 continue
             # rewards
-            self.results[work_id[1]][0][idx] = relevant_rewards[i]
+            self.run_results.add_qtable(stage=work_id[1], table=relevant_q_tables[i], experiment_id=idx)
+            self.run_results.add_rewards(stage=work_id[1], rewards=relevant_rewards[i], experiment_id=idx)
+            self.run_results.add_test_rewards(stage=work_id[1], test_rewards=relevant_test_rewards[i], experiment_id=idx)
+            #self.results[work_id[1]][0][idx] = relevant_rewards[i]
             # qvalues
             #print(len(self.results[work_id[1]][1]), idx, work_id)
-            self.results[work_id[1]][1][idx] = relevant_q_tables[i]
+            #self.results[work_id[1]][1][idx] = relevant_q_tables[i]
             
             # test_rewards
-            self.results[work_id[1]][2][idx] = relevant_test_rewards[i]
+            #self.results[work_id[1]][2][idx] = relevant_test_rewards[i]
+        
         self.remaining[work_id[1]] = self.remaining[work_id[1]] - set(work_id[2])
         if not self.requires_work(work_id):
-            x = self.results[work_id[1]]
-            x[0] = np.array(x[0])
-            x[1] = np.array(x[1])
-            x[2] = np.array(x[2])
-        
             if work_id[1] >= 1:
-                self.results[work_id[1] - 1][1] = [] # Delete previous qtables to save memory
+                self.run_results.stage_complete(work_id[1])
+                #self.results[work_id[1] - 1][1] = [] # Delete previous qtables to save memory
         return True
     def is_complete(self):
         return all([len(x) == 0 for x in self.remaining])
@@ -104,12 +178,12 @@ class ExperimentalRun:
         test_rewards_dict = {}
         rewards_dict = {}
         q_tables_dict = {}
-        f = np.concatenate([x for x, _, _ in self.results], axis=1)
+        f = self.run_results.get_rewards()
+        g = self.run_results.get_test_rewards()
         rewards_dict[key] = f
         
-        g = np.concatenate([z for _, _, z in self.results], axis=1)
         test_rewards_dict[key] = g
-        q_tables_dict[key] = np.array(self.results[-1][1])
+        q_tables_dict[key] = self.run_results.get_last_qtable()
         return rewards_dict, q_tables_dict, test_rewards_dict
             
     def split(self, work_unit, num_episodes_per_unit):
@@ -198,6 +272,9 @@ def get_work():
         if wu.checkpoint_Q is not None:
             param["experiment_parameters"]["checkpoint_Q"] = wu.checkpoint_Q
     return jsonify({"work": params, "assignment_id": assignment_id}), 200
+@app.route("/clearworkers")
+def clear_workers():
+    workers.clear()
 @app.route("/write", methods=["POST"])
 def write_results():
     f = request.json
@@ -262,9 +339,39 @@ runs = [{"agent": agent, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "temp
         for episode_annealing in [1000]
         for step_annealing in [2000]]
 
+betas = [('BSC', '11'), ('CSC', '11'),
+         ('RSC', 'lambda: np.random.uniform(0, 2)'),
+         ('RSC', 'lambda: np.random.uniform(0, 1)'),
+         ('RSC', 'lambda: 1'),
+         ('RSC', 'lambda: 1.5 if np.random.uniform(0, 1) < 0.5 else 0.5'),
+         ('RSC', 'lambda: np.random.uniform(0.5, 1.5)'),
+         ('RSC', 'lambda: np.random.beta(2, 3)'),
+         ('RSC', 'lambda: np.random.beta(2, 7)'),
+         ('RSC', 'lambda: np.random.pareto(2)'),
+         ('RSC', 'lambda: np.random.pareto(3)'),]
+runs = []
+m, l = script.MC_ENV_NAME, script.LUNAR_ENV_NAME
+episodes = {m: [10000, 1000], l: [10000, 1000]}
+alphas = {m: 0.01, l: 0.1}
+gammas = {m: 0.99, l: 0.995}
+init_Qs = {m: -50, l: -25}
+temps = {m: 1, l: 1}
+for env in [script.MC_ENV_NAME, script.LUNAR_ENV_NAME]:
+    num_episodes_f = episodes[env]
+    runs.extend([{"agent": agent,
+                  "alpha": alphas[env],
+                  "gamma": gammas[env],
+                  "init_Q": init_Qs[env],
+                  "temperature": temps[env],
+                  "epsilon": 0.2,
+                  "episode_annealing": 1000,
+                  "step_annealing": 2000,
+                  "beta_function": function_string} for agent, function_string in betas])
+
+
 work_units = [WorkUnit(None, env, list(range(num_experiments)), num_episodes, run) for run in runs]
 experiment_queue = [ExperimentalRun(i, wu, 2000) for i, wu in enumerate(work_units)]
 experiments = {experiment.run_id: experiment for experiment in experiment_queue}
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=80, debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)

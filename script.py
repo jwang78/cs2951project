@@ -54,7 +54,8 @@ class Agent:
                  temperature,
                  epsilon,
                  episode_annealing,
-                 step_annealing):
+                 step_annealing,
+                 beta_function):
         #assert type in ['B', 'C', 'R'], 'type should be B,C, or R'
         self.type = type
         self.action_space = list(action_space)
@@ -70,6 +71,7 @@ class Agent:
         self.init_learning_rate = learning_rate
         self.episode_annealing = episode_annealing
         self.step_annealing = step_annealing
+        self.beta_function = beta_function
     def anneal(self,episode,step):
         self.learning_rate = self.init_learning_rate / (1.0 + (step / self.episode_annealing) * (1 + episode) / self.episode_annealing)
         self.epsilon = self.init_epsilon / (1.0 + (step / self.episode_annealing) * (1 + episode) / self.episode_annealing)
@@ -100,7 +102,7 @@ class Agent:
                                                                         )))
 
         elif self.type[0] == 'R':
-            beta = np.random.uniform(low=0.0, high=2.0)
+            beta = self.beta_function()
 
             q_value = self.Q[curr_state_idx, action_idx]
             r_value = reward + self.discount_factor*np.amax(self.Q[next_state_idx, :]) - beta * (np.amax(self.Q[curr_state_idx, :]) - q_value)
@@ -173,6 +175,7 @@ def moving_average(a, n):
 def run_multiple_hyperparameters_async(pool, params, callback):
     the_args = []
     params_tracker = []
+    
     for hyperparameters, experiment_parameters in params:
         environment, discretization = experiment_parameters["environment"], hyperparameters["discretization"]
         sample_environment = gym.make(environment)
@@ -187,7 +190,8 @@ def run_multiple_hyperparameters_async(pool, params, callback):
           hyperparameters["temperature"],
           hyperparameters["epsilon"],
           hyperparameters["episode_annealing"],
-          hyperparameters["step_annealing"])
+          hyperparameters["step_annealing"],
+          eval(hyperparameters["beta_function"]))
         other_params = (environment,
                         experiment_parameters["num_episodes"],
                         experiment_parameters["num_test_episodes"],
@@ -222,7 +226,8 @@ def run_multiple_hyperparameters_async(pool, params, callback):
                           "temperature": hyperparams["temperature"],
                           "epsilon": hyperparams["epsilon"],
                           "episode_annealing": hyperparams["episode_annealing"],
-                          "step_annealing": hyperparams["step_annealing"]}
+                          "step_annealing": hyperparams["step_annealing"],
+                          "beta_function": hyperparams["beta_function"]}
             name = re.sub(r"\s+", "", json.dumps(parameters, sort_keys=True))
             raw_rewards_dict[name].append(reward)
             q_tables_dict[name].append(q_table)
@@ -245,7 +250,18 @@ def run(pool, environment, state_space, discretization, alpha, gamma, init_Q,
     the_args = []
     envvv = gym.make(environment)
     for agent in ['BSC', 'CSC', 'RSC']:
-        args = [(Agent(agent, state_space, list(range(envvv.action_space.n)), discretization, alpha, gamma, init_Q, temperature, epsilon, episode_annealing, step_annealing), environment, num_episodes, num_test_episodes, max_steps, False) for i in range(num_experiments)]
+        args = [(Agent(agent,
+                       state_space,
+                       list(range(envvv.action_space.n)),
+                       discretization,
+                       alpha,
+                       gamma,
+                       init_Q,
+                       temperature,
+                       epsilon,
+                       episode_annealing,
+                       step_annealing,
+                       lambda: np.random.uniform(low=0.0, high=2.0)), environment, num_episodes, num_test_episodes, max_steps, False) for i in range(num_experiments)]
         the_args += args
     #run_agent(*the_args[0])
     all_rewards = pool.starmap(run_agent, the_args)
