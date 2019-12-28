@@ -39,7 +39,7 @@ class ExperimentalRunResult:
         self.q_files = []
         self.r_files = []
         self.tr_files = []
-    def get_rewards():
+    def get_rewards(self):
         arr = [np.load(x)['r'] for x in self.r_files]
         x = np.concatenate(arr)
         return x
@@ -328,7 +328,7 @@ def complete_work():
 
 env = script.LUNAR_ENV_NAME
 num_experiments = 20
-num_episodes = [15000, 1000]
+num_episodes = [10000, 1000]
 runs = [{"agent": agent, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "temperature": temperature, "epsilon": epsilon, "episode_annealing": episode_annealing, "step_annealing": step_annealing}
         for agent in ["BSC", "CSC", "RSC", "BEC", "CEC", "REC", "BSA", "CSA", "RSA"]
         for alpha in [0.01, 0.1, 0.5]
@@ -339,7 +339,7 @@ runs = [{"agent": agent, "alpha": alpha, "gamma": gamma, "init_Q": init_Q, "temp
         for episode_annealing in [1000]
         for step_annealing in [2000]]
 
-betas = [('BSC', '11'), ('CSC', '11'),
+betas = [('BSC', "0"), ('CSC', "0"),
          ('RSC', 'lambda: np.random.uniform(0, 2)'),
          ('RSC', 'lambda: np.random.uniform(0, 1)'),
          ('RSC', 'lambda: 1'),
@@ -351,14 +351,14 @@ betas = [('BSC', '11'), ('CSC', '11'),
          ('RSC', 'lambda: np.random.pareto(3)'),]
 runs = []
 m, l = script.MC_ENV_NAME, script.LUNAR_ENV_NAME
-episodes = {m: [10000, 1000], l: [10000, 1000]}
+episodes = {m: [10000, 100], l: [10000, 1000]}
 alphas = {m: 0.01, l: 0.1}
 gammas = {m: 0.99, l: 0.995}
 init_Qs = {m: -50, l: -25}
 temps = {m: 1, l: 1}
 for env in [script.MC_ENV_NAME, script.LUNAR_ENV_NAME]:
     num_episodes_f = episodes[env]
-    runs.extend([{"agent": agent,
+    runs.extend([({"agent": agent,
                   "alpha": alphas[env],
                   "gamma": gammas[env],
                   "init_Q": init_Qs[env],
@@ -366,10 +366,10 @@ for env in [script.MC_ENV_NAME, script.LUNAR_ENV_NAME]:
                   "epsilon": 0.2,
                   "episode_annealing": 1000,
                   "step_annealing": 2000,
-                  "beta_function": function_string} for agent, function_string in betas])
+                  "beta_function": function_string}, num_episodes_f) for agent, function_string in betas])
 
 
-work_units = [WorkUnit(None, env, list(range(num_experiments)), num_episodes, run) for run in runs]
+work_units = [WorkUnit(None, env, list(range(num_experiments)), n_episodes, run) for run, n_episodes in runs]
 experiment_queue = [ExperimentalRun(i, wu, 2000) for i, wu in enumerate(work_units)]
 experiments = {experiment.run_id: experiment for experiment in experiment_queue}
 
